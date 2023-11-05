@@ -1,0 +1,63 @@
+﻿name: Build and deploy Python app to Azure Web App
+
+env:
+  AZURE_WEBAPP_NAME: wi21b057webApp   # PowerShell variable substitution
+  PYTHON_VERSION: '3.11'
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}   # GitHub Actions expression
+
+      - name: Create and start virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+
+      - name: Set up dependency caching for faster installs
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}   # GitHub Actions expression
+          restore-keys: |
+            ${{ runner.os }}-pip-   # GitHub Actions expression
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Upload artifact for deployment jobs
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-app
+          path: |
+            .
+            !venv/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v3
+        with:
+          name: python-app
+          path: .
+
+      - name: 'Deploy to Azure Web App'
+        uses: azure/webapps-deploy@v1
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}   # GitHub Actions expression
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}   # GitHub Actions expression
